@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
 import numpy as np
 
@@ -18,8 +18,8 @@ class CalibrationParams(BaseModel):
     debt_cycle_period_years: float = Field(5.5, description="Period of the debt refinancing cycle in years")
     debt_cycle_phase_offset: float = Field(0.0, description="Phase offset for the debt cycle (phi)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "alpha": 1.5,
                 "beta": 0.3,
@@ -32,6 +32,7 @@ class CalibrationParams(BaseModel):
                 "debt_cycle_phase_offset": 0.0
             }
         }
+    )
 
 class SimulationState(BaseModel):
     """
