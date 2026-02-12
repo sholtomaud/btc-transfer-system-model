@@ -1,0 +1,16 @@
+[project]
+name = "btc-transfer-system-model"
+version = "0.1.0"
+description = "A dynamic systems simulation engine for modeling Bitcoin liquidity transmission."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "pydantic>=2.9.0",
+    "numpy>=2.1.0",
+    "pandas>=2.2.0",
+    "websockets>=13.0",
+    "deap>=1.4.0",
+    "yfinance>=0.2.40",
+]

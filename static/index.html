@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC Liquidity Transmission System</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --border-color: #30363d;
+            --accent-color: #f7931a;
+            /* BTC Orange */
+            --liquidity-color: #58a6ff;
+            /* Blue */
+            --uncertainty-color: rgba(247, 147, 26, 0.2);
+            --actual-color: #ffffff;
+            /* White for history */
+            --chart-bg: #161b22;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: var(--accent-color);
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
+
+        .controls {
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--chart-bg);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .chart-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+        }
+
+        btc-chart {
+            flex: 1;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--chart-bg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        input,
+        select,
+        button {
+            width: 100%;
+            padding: 8px;
+            background: #21262d;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            cursor: pointer;
+            background: var(--accent-color);
+            color: #fff;
+            font-weight: bold;
+            border: none;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        label {
+            font-size: 0.85em;
+            color: #8b949e;
+            font-weight: 600;
+        }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(13, 17, 23, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            pointer-events: none;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .color-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(13, 17, 23, 0.95);
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="controls">
+            <h1>Configuration</h1>
+
+            <div class="control-group">
+                <label>Scenario Name</label>
+                <input type="text" id="scenarioName" value="Backtest & Forecast">
+            </div>
+
+            <div class="control-group">
+                <label>Start Date</label>
+                <!-- Default to a past date for backtesting view -->
+                <input type="date" id="startDate" value="2020-01-01">
+            </div>
+
+            <div class="control-group">
+                <label>Duration (Days)</label>
+                <!-- 2020 to 2027 is ~7 years = ~2555 days -->
+                <input type="number" id="duration" value="2555">
+            </div>
+
+            <div class="control-group">
+                <label>History Update Interval (min)</label>
+                <input type="number" id="historyUpdateInterval" value="60" min="1">
+            </div>
+
+            <hr style="border-color: var(--border-color); width: 100%;">
+
+            <div class="control-group">
+                <label>Initial Price ($) (Auto-overridden by history)</label>
+                <input type="number" id="initialPrice" value="7200">
+            </div>
+
+            <div class="control-group">
+                <label>Alpha (Liquidity Sensitivity)</label>
+                <input type="number" id="alpha" value="2.5" step="0.1">
+            </div>
+
+            <div class="control-group">
+                <label>Beta (Reflexivity Strength)</label>
+                <input type="number" id="beta" value="0.3" step="0.05">
+            </div>
+
+            <div class="control-group">
+                <label>Lambda (Reflexivity Nonlinearity)</label>
+                <input type="number" id="lambda" value="2.0" step="0.1">
+            </div>
+
+            <div class="control-group">
+                <label>Kappa (Halving Amp)</label>
+                <input type="number" id="kappa" value="0.5" step="0.1">
+            </div>
+
+            <div class="control-group">
+                <label>Theta (Vol Reversion)</label>
+                <input type="number" id="theta" value="0.1" step="0.05">
+            </div>
+
+            <div class="control-group">
+                <label>Xi (Vol Randomness)</label>
+                <input type="number" id="xi" value="0.05" step="0.01">
+            </div>
+
+            <div class="control-group">
+                <label>Sigma0 (Base Vol)</label>
+                <input type="number" id="sigma0" value="0.02" step="0.005">
+            </div>
+
+            <div class="control-group">
+                <label>Monte Carlo Paths</label>
+                <input type="number" id="mcPaths" value="100" step="50">
+            </div>
+
+            <button id="runBtn">Run Simulation</button>
+            <button id="optimizeBtn" style="background: #238636;">Auto-Tune Parameters</button>
+
+            <div id="status" style="margin-top: 10px; font-size: 0.8em;">Ready</div>
+        </div>
+
+        <div class="chart-container">
+            <btc-chart id="priceChart"></btc-chart>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="color-box" style="background: var(--actual-color); border: 1px solid #555;"></div>
+                    <span>Actual History</span>
+                </div>
+                <div class="legend-item">
+                    <div class="color-box" style="background: var(--accent-color);"></div>
+                    <span>Model P50</span>
+                </div>
+                <div class="legend-item">
+                    <div class="color-box"
+                        style="background: var(--uncertainty-color); border: 1px solid var(--accent-color);"></div>
+                    <span>Model P10-P90</span>
+                </div>
+                <div class="legend-item">
+                    <div class="color-box" style="background: var(--liquidity-color);"></div>
+                    <span>Liquidity</span>
+                </div>
+            </div>
+            <div id="tooltip" class="tooltip"></div>
+        </div>
+    </div>
+
+    <script>
+        class BTCChart extends HTMLElement {
+            constructor() {
+                super();
+                this.attachShadow({ mode: 'open' });
+                this.data = null;
+                this.history = null;
+            }
+
+            connectedCallback() {
+                this.shadowRoot.innerHTML = `
+                    <style>
+                        :host { display: block; width: 100%; height: 100%; }
+                        svg { width: 100%; height: 100%; cursor: crosshair; }
+                        path { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+                        .price-p50 { stroke: #f7931a; stroke-width: 2.5; }
+                        .actual { stroke: #ffffff; stroke-width: 1.5; opacity: 0.8; }
+                        .uncertainty { fill: rgba(247, 147, 26, 0.2); stroke: none; }
+                        .liquidity { stroke: #58a6ff; opacity: 0.4; stroke-width: 1.5; stroke-dasharray: 4; }
+                        text { fill: #8b949e; font-family: monospace; font-size: 10px; }
+                        line.grid { stroke: #30363d; stroke-dasharray: 2; stroke-width: 1; opacity: 0.5; }
+                        line.crosshair { stroke: #c9d1d9; stroke-width: 1; stroke-dasharray: 4; opacity: 0.8; }
+                        line.current-date { stroke: #58a6ff; stroke-width: 1; stroke-dasharray: 5; opacity: 0.8; }
+                        .axis-domain { stroke: #30363d; stroke-width: 1; }
+                    </style>
+                    <svg preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="grid-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#30363d" stop-opacity="0.2"/>
+                                <stop offset="100%" stop-color="#30363d" stop-opacity="0.1"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="100%" height="100%" fill="transparent"/>
+                        <g class="grid"></g>
+                        <path class="uncertainty" d="" />
+                        <path class="liquidity" d="" />
+                        <path class="price-p50" d="" />
+                        <path class="actual" d="" />
+                        <line class="current-date" y1="0" y2="100%" style="display:none"></line>
+                        <g class="axes"></g>
+                        <g class="crosshair" style="display: none;">
+                            <line class="crosshair x" y1="0" y2="100%"></line>
+                            <line class="crosshair y" x1="0" x2="100%"></line>
+                            <circle r="4" fill="#fff"></circle>
+                        </g>
+                    </svg>
+                `;
+                this.svg = this.shadowRoot.querySelector('svg');
+                this.pathPrice = this.shadowRoot.querySelector('.price-p50');
+                this.pathActual = this.shadowRoot.querySelector('.actual');
+                this.pathUncertainty = this.shadowRoot.querySelector('.uncertainty');
+                this.pathLiquidity = this.shadowRoot.querySelector('.liquidity');
+                this.lineCurrentDate = this.shadowRoot.querySelector('.current-date');
+                this.crosshairGroup = this.shadowRoot.querySelector('.crosshair');
+
+                this.svg.addEventListener('mousemove', (e) => this.onMouseMove(e));
+                this.svg.addEventListener('mouseleave', () => {
+                    this.crosshairGroup.style.display = 'none';
+                    document.getElementById('tooltip').style.display = 'none';
+                });
+
+                this.resizeObserver = new ResizeObserver(() => {
+                    if (this.data) {
+                        this.render({ steps: this.data, params: this.params, history: this.history });
+                    }
+                });
+                this.resizeObserver.observe(this);
+            }
+
+            disconnectedCallback() {
+                if (this.resizeObserver) this.resizeObserver.disconnect();
+            }
+
+            render(simResult) {
+                if (!simResult || !simResult.steps) return;
+                this.data = simResult.steps;
+                this.history = simResult.history || [];
+                this.params = simResult.params;
+
+                const parentRect = this.getBoundingClientRect();
+                const width = parentRect.width;
+                const height = parentRect.height;
+                this.svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+                const padding = { top: 20, right: 60, bottom: 40, left: 60 };
+                const plotWidth = width - padding.left - padding.right;
+                const plotHeight = height - padding.top - padding.bottom;
+
+                // Helper to get ranges
+                const steps = this.data;
+                const pricesP90 = steps.map(s => s.price_p90);
+                const pricesP10 = steps.map(s => s.price_p10);
+
+                // Incorporate history into min/max calc
+                const histPrices = this.history.map(h => h.price);
+
+                const allMin = Math.min(...pricesP10, ...(histPrices.length ? histPrices : [Infinity]));
+                const allMax = Math.max(...pricesP90, ...(histPrices.length ? histPrices : [-Infinity]));
+
+                const minPrice = allMin * 0.95;
+                const maxPrice = allMax * 1.05;
+
+                const liquidities = steps.map(s => s.avg_liquidity);
+                const minLiq = Math.min(...liquidities) * 0.99;
+                const maxLiq = Math.max(...liquidities) * 1.01;
+
+                this.scales = {
+                    x: (i) => padding.left + (i / (steps.length - 1)) * plotWidth,
+                    y: (p) => padding.top + plotHeight - ((p - minPrice) / (maxPrice - minPrice)) * plotHeight,
+                    yLiq: (l) => padding.top + plotHeight - ((l - minLiq) / (maxLiq - minLiq)) * plotHeight,
+                    invertX: (x) => Math.round(((x - padding.left) / plotWidth) * (steps.length - 1)),
+                    minPrice, maxPrice
+                };
+
+                // 1. Draw P50 Line
+                let dPrice = `M ${this.scales.x(0)} ${this.scales.y(steps[0].price_p50)}`;
+                for (let i = 1; i < steps.length; i++) {
+                    dPrice += ` L ${this.scales.x(i)} ${this.scales.y(steps[i].price_p50)}`;
+                }
+                this.pathPrice.setAttribute('d', dPrice);
+
+                // 2. Draw Uncertainty Band (Area)
+                let dBand = `M ${this.scales.x(0)} ${this.scales.y(steps[0].price_p90)}`;
+                for (let i = 1; i < steps.length; i++) {
+                    dBand += ` L ${this.scales.x(i)} ${this.scales.y(steps[i].price_p90)}`;
+                }
+                for (let i = steps.length - 1; i >= 0; i--) {
+                    dBand += ` L ${this.scales.x(i)} ${this.scales.y(steps[i].price_p10)}`;
+                }
+                dBand += " Z";
+                this.pathUncertainty.setAttribute('d', dBand);
+
+                // 3. Draw Actual History
+                if (this.history.length > 0) {
+                    // We need to map history dates to step indices or interpolate
+                    // The simulation steps have timestamps. We can map history timestamps to X.
+                    // Assumes step linear spacing.
+                    const startTs = steps[0].timestamp;
+                    const endTs = steps[steps.length - 1].timestamp;
+                    const duration = endTs - startTs;
+
+                    let dActual = "";
+                    let first = true;
+
+                    this.history.forEach(h => {
+                        const hTs = new Date(h.date).getTime() / 1000;
+                        if (hTs >= startTs && hTs <= endTs) {
+                            // Normalize to 0-1
+                            const progress = (hTs - startTs) / duration;
+                            const x = padding.left + progress * plotWidth;
+                            const y = this.scales.y(h.price);
+
+                            if (first) {
+                                dActual = `M ${x} ${y}`;
+                                first = false;
+                            } else {
+                                dActual += ` L ${x} ${y}`;
+                            }
+                        }
+                    });
+                    this.pathActual.setAttribute('d', dActual);
+                }
+
+                // 4. Draw Current Date Line (Forecast start)
+                const nowTs = Date.now() / 1000;
+                const startTs = steps[0].timestamp;
+                const endTs = steps[steps.length - 1].timestamp;
+                if (nowTs > startTs && nowTs < endTs) {
+                    const progress = (nowTs - startTs) / (endTs - startTs);
+                    const x = padding.left + progress * plotWidth;
+                    this.lineCurrentDate.style.display = 'block';
+                    this.lineCurrentDate.setAttribute('x1', x);
+                    this.lineCurrentDate.setAttribute('x2', x);
+                } else {
+                    this.lineCurrentDate.style.display = 'none';
+                }
+
+                // 5. Liquidity
+                let dLiq = `M ${this.scales.x(0)} ${this.scales.yLiq(steps[0].avg_liquidity)}`;
+                for (let i = 1; i < steps.length; i++) {
+                    dLiq += ` L ${this.scales.x(i)} ${this.scales.yLiq(steps[i].avg_liquidity)}`;
+                }
+                this.pathLiquidity.setAttribute('d', dLiq);
+
+                // 6. Axes
+                this.drawAxes(steps, minPrice, maxPrice, padding, width, height, plotHeight, plotWidth);
+            }
+
+            drawAxes(steps, minPrice, maxPrice, padding, width, height, plotHeight, plotWidth) {
+                const axes = this.shadowRoot.querySelector('.axes');
+                axes.innerHTML = '';
+
+                // Y-Axis
+                const numTicks = 6;
+                for (let i = 0; i <= numTicks; i++) {
+                    const price = minPrice + (i / numTicks) * (maxPrice - minPrice);
+                    const y = this.scales.y(price);
+
+                    const grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    grid.setAttribute("class", "grid");
+                    grid.setAttribute("x1", padding.left);
+                    grid.setAttribute("x2", width - padding.right);
+                    grid.setAttribute("y1", y);
+                    grid.setAttribute("y2", y);
+                    axes.appendChild(grid);
+
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", width - padding.right + 10);
+                    text.setAttribute("y", y + 4);
+                    text.textContent = "$" + Math.round(price).toLocaleString();
+                    axes.appendChild(text);
+                }
+
+                // X-Axis
+                const numXTicks = 6;
+                for (let i = 0; i <= numXTicks; i++) {
+                    const idx = Math.round((i / numXTicks) * (steps.length - 1));
+                    if (idx < steps.length) {
+                        const x = this.scales.x(idx);
+                        const step = steps[idx];
+                        const date = new Date(step.timestamp * 1000);
+
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.setAttribute("x", x);
+                        text.setAttribute("y", height - padding.bottom + 20);
+                        text.setAttribute("text-anchor", "middle");
+                        text.textContent = date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+                        axes.appendChild(text);
+                    }
+                }
+            }
+
+            onMouseMove(e) {
+                if (!this.data) return;
+
+                // Use offsetX if available for better precision relative to target
+                let x;
+                if (e.offsetX !== undefined) {
+                    x = e.offsetX;
+                } else {
+                    const rect = this.svg.getBoundingClientRect();
+                    x = e.clientX - rect.left;
+                }
+
+                let idx = this.scales.invertX(x);
+                idx = Math.max(0, Math.min(idx, this.data.length - 1));
+
+                const step = this.data[idx];
+                const px = this.scales.x(idx);
+                const py = this.scales.y(step.price_p50);
+
+                this.crosshairGroup.style.display = 'block';
+                const lineX = this.crosshairGroup.querySelector('.x');
+                const lineY = this.crosshairGroup.querySelector('.y');
+                const circle = this.crosshairGroup.querySelector('circle');
+
+                lineX.setAttribute('x1', px);
+                lineX.setAttribute('x2', px);
+                lineY.setAttribute('y1', py);
+                lineY.setAttribute('y2', py);
+                circle.setAttribute('cx', px);
+                circle.setAttribute('cy', py);
+
+                const tooltip = document.getElementById('tooltip');
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX + 15) + 'px';
+                tooltip.style.top = (e.clientY + 15) + 'px';
+
+                const date = new Date(step.timestamp * 1000).toLocaleDateString();
+
+                // Find actual price if available
+                let actualPriceStr = "N/A";
+                // Simple search (could be optimized)
+                const stepDate = new Date(step.timestamp * 1000).toISOString().split('T')[0];
+                const actual = this.history.find(h => h.date === stepDate);
+                if (actual) actualPriceStr = "$" + Math.round(actual.price).toLocaleString();
+
+                tooltip.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 4px;">${date}</div>
+                    <div>Actual: <span style="color: #fff;">${actualPriceStr}</span></div>
+                    <div>Model: <span style="color: var(--accent-color);">$${Math.round(step.price_p50).toLocaleString()}</span></div>
+                    <div style="font-size: 0.9em; opacity: 0.8;">Range: $${Math.round(step.price_p10).toLocaleString()} - $${Math.round(step.price_p90).toLocaleString()}</div>
+                    <div style="font-size: 0.9em; color: var(--liquidity-color);">Liq: ${step.avg_liquidity.toFixed(1)}</div>
+                `;
+            }
+        }
+
+        customElements.define('btc-chart', BTCChart);
+
+        // App Logic
+        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const statusDiv = document.getElementById('status');
+        const chart = document.getElementById('priceChart');
+
+        ws.onopen = () => {
+            statusDiv.textContent = "Connected.";
+            statusDiv.style.color = "#238636";
+        };
+
+        ws.onclose = () => {
+            statusDiv.textContent = "Disconnected.";
+            statusDiv.style.color = "#da3633";
+        };
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "simulation_result") {
+                const steps = msg.data.steps;
+                statusDiv.textContent = `Simulation complete. Steps: ${steps.length}. History records: ${msg.data.history.length}`;
+                chart.render(msg.data);
+            } else if (msg.type === "info") {
+                statusDiv.textContent = msg.message;
+            } else if (msg.type === "optimization_result") {
+                statusDiv.textContent = `Optimized! Return: ${(msg.metrics.return * 100).toFixed(1)}%`;
+                const p = msg.params;
+                document.getElementById('alpha').value = p.alpha;
+                document.getElementById('beta').value = p.beta;
+                document.getElementById('lambda').value = p.lambda_val;
+                document.getElementById('kappa').value = p.kappa;
+                document.getElementById('theta').value = p.theta;
+                document.getElementById('xi').value = p.xi;
+                document.getElementById('sigma0').value = p.sigma_0;
+                runSimulation();
+            } else if (msg.type === "error") {
+                statusDiv.textContent = "Error: " + msg.message;
+                statusDiv.style.color = "#da3633";
+            }
+        };
+
+        function getParams() {
+            return {
+                alpha: parseFloat(document.getElementById('alpha').value),
+                beta: parseFloat(document.getElementById('beta').value),
+                lambda_val: parseFloat(document.getElementById('lambda').value),
+                kappa: parseFloat(document.getElementById('kappa').value),
+                theta: parseFloat(document.getElementById('theta').value),
+                xi: parseFloat(document.getElementById('xi').value),
+                sigma_0: parseFloat(document.getElementById('sigma0').value),
+                debt_cycle_period_years: 5.5,
+                debt_cycle_phase_offset: 0.0
+            };
+        }
+
+        function getScenario() {
+            return {
+                name: document.getElementById('scenarioName').value,
+                start_date: document.getElementById('startDate').value,
+                duration_days: parseInt(document.getElementById('duration').value),
+                time_step_hours: 24,
+                initial_price: parseFloat(document.getElementById('initialPrice').value),
+                initial_liquidity: 100,
+                liquidity_trend: 0.05,
+                liquidity_volatility: 0.1,
+                monte_carlo_paths: parseInt(document.getElementById('mcPaths').value)
+            };
+        }
+
+        function runSimulation() {
+            const params = getParams();
+            const scenario = getScenario();
+            const historyUpdateInterval = parseInt(document.getElementById('historyUpdateInterval').value) || 60;
+
+            ws.send(JSON.stringify({
+                action: "run_simulation",
+                params: params,
+                scenario: scenario,
+                history_update_interval: historyUpdateInterval
+            }));
+            statusDiv.textContent = `Running Backtest & Monte Carlo (${scenario.monte_carlo_paths} paths)...`;
+        }
+
+        function runOptimization() {
+            statusDiv.textContent = "Calibrating Model to History... (this may take a moment)";
+            const scenario = getScenario();
+            const historyUpdateInterval = parseInt(document.getElementById('historyUpdateInterval').value) || 60;
+
+            scenario.monte_carlo_paths = 10;
+            const config = {
+                population_size: 20,
+                generations: 5,
+                mutation_rate: 0.2,
+                crossover_rate: 0.5,
+                target_return: 2.0,
+                max_drawdown_limit: 0.3,
+                objective: "calibration"
+            };
+            ws.send(JSON.stringify({
+                action: "optimize",
+                scenario: scenario,
+                config: config,
+                history_update_interval: historyUpdateInterval
+            }));
+        }
+
+        document.getElementById('runBtn').addEventListener('click', runSimulation);
+        document.getElementById('optimizeBtn').addEventListener('click', runOptimization);
+
+    </script>
+</body>
+
+</html>
