@@ -42,10 +42,10 @@ class SimulationEngine:
         
         num_paths = scenario.monte_carlo_paths
 
-        # Arrays to store paths: [paths, steps]
-        price_paths = np.zeros((num_paths, steps))
-        liquidity_paths = np.zeros((num_paths, steps))
-        volatility_paths = np.zeros((num_paths, steps))
+        # Arrays to store paths: [paths, steps + 1] (including t=0)
+        price_paths = np.zeros((num_paths, steps + 1))
+        liquidity_paths = np.zeros((num_paths, steps + 1))
+        volatility_paths = np.zeros((num_paths, steps + 1))
         
         # Determine initial price
         # If historical_data is provided, try to find the price at start_date
@@ -66,12 +66,17 @@ class SimulationEngine:
             current_volatility = self.params.sigma_0
             prev_log_price = current_log_price
             
+            # Store initial state
+            price_paths[p, 0] = initial_price
+            liquidity_paths[p, 0] = current_liquidity
+            volatility_paths[p, 0] = current_volatility
+
             liquidity_drift = scenario.liquidity_trend
             liquidity_vol = scenario.liquidity_volatility
             
             time_elapsed_years = 0.0
 
-            for t in range(steps):
+            for t in range(1, steps + 1):
                 # 1. Update Liquidity
                 dW_L = np.random.normal(0, np.sqrt(dt_years))
                 dL = current_liquidity * (liquidity_drift * dt_years + liquidity_vol * dW_L)
@@ -116,7 +121,7 @@ class SimulationEngine:
 
         # Aggregation
         monte_carlo_steps = []
-        for t in range(steps):
+        for t in range(steps + 1):
             # Price percentiles
             prices_t = price_paths[:, t]
             p10 = float(np.percentile(prices_t, 10))

@@ -10,8 +10,8 @@ htmlcov/
 # macOS
 .DS_Store
 
-# Local Data Cache
-btc_history_cache.json
+# Local Data Cache (keeping reference data checked in)
+# btc_history_cache.json
 
 # IDEs
 .vscode/

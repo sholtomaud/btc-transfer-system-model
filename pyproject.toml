@@ -14,3 +14,13 @@ dependencies = [
     "deap>=1.4.0",
     "yfinance>=0.2.40",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
